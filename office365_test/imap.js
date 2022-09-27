@@ -146,10 +146,10 @@ function getImapInbox(accessToken) {
 		}
 	}
 	var folder = imapAccount.getRootFolder()
-	var subFoldees = folder.getSubfolders();
-	for (var iFolders = 0; iFolders < subFoldees.length; iFolders++) {
+	var subFolders = folder.getSubfolders();
+	for (var iFolders = 0; iFolders < subFolders.length; iFolders++) {
 		try {
-			application.output(subFoldees[iFolders].name + ' -> ' + subFoldees[iFolders].getMessageCount().toString());
+			application.output(subFolders[iFolders].name + ' -> ' + subFolders[iFolders].getMessageCount().toString());
 		} catch (e) {
 			application.output('Error Accessing Folder: ' + e.name + ' -> ' + e.message + '\n' + e.stack,LOGGINGLEVEL.ERROR)
 			break;
