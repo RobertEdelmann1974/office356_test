@@ -105,18 +105,18 @@ function getImapLoginToken(code) {
 		/** @type {{token_type: String, scope: String, expires_in: String, ext_expires_in: String, access_token: String, refresh_token: String, id_token: String}} */
 		var imapLoginObject = JSON.parse(response.getResponseBody());
 		if (imapLoginObject && imapLoginObject.hasOwnProperty('access_token') && imapLoginObject.access_token) {
-			getImapInbox(imapLoginObject.access_token);
+			getImapFolders(imapLoginObject.access_token);
 		}
 	}
 }
 
 /**
  * uses the access_token to authenticate
- * @param {String} [accessToken]
+ * @param {String} accessToken
  *
  * @properties={typeid:24,uuid:"66279104-70F9-4088-999A-AD0471CA2786"}
  */
-function getImapInbox(accessToken) {
+function getImapFolders(accessToken) {
 	if (!accessToken) {
 		return;
 	}
@@ -145,14 +145,65 @@ function getImapInbox(accessToken) {
 			return;
 		}
 	}
-	var folder = imapAccount.getRootFolder()
-	var subFolders = folder.getSubfolders();
-	for (var iFolders = 0; iFolders < subFolders.length; iFolders++) {
-		try {
-			application.output(subFolders[iFolders].name + ' -> ' + subFolders[iFolders].getMessageCount().toString());
-		} catch (e) {
-			application.output('Error Accessing Folder: ' + e.name + ' -> ' + e.message + '\n' + e.stack,LOGGINGLEVEL.ERROR)
-			break;
+	var folder = imapAccount.getFolder('INBOX');
+	if (folder) {
+		var messageCount = folder.getMessageCount()
+		messageCount = messageCount > 10 ? 10 : messageCount
+		for (var i = 0; i < messageCount -1; i++) {
+			var message = folder.getMessage(i,plugins.MailPro.RECEIVE_MODE.HEADERS_ONLY);
+			if (message) {
+				application.output(message.subject);
+			}
+		}
+	}
+}
+
+
+/**
+ * uses the access_token to authenticate
+ * @param {String} accessToken
+ *
+ *
+ * @properties={typeid:24,uuid:"5A1F2AC8-8A94-40F4-8099-2DED882EAFBE"}
+ */
+function getImapMails(accessToken) {
+	if (!accessToken) {
+		return;
+	}
+	var imapAccount = plugins.MailPro.ImapAccount('emailaccount', 'outlook.office365.com', user_email, accessToken);
+	imapAccount.port = 993
+	var props = {
+		"mail.imap.fetchsize": java.lang.Integer.parseInt('1048576'),
+		"mail.imaps.fetchsize": java.lang.Integer.parseInt('1048576'),
+		"mail.imap.connectionpoolsize": "10",
+		"mail.imaps.connectionpoolsize": "10",
+		'mail.imaps.starttls.enable': true,
+		'mail.imap.starttls.enable': true,
+		"mail.imap.ssl.enable": true,
+		"mail.imaps.ssl.enable": true,
+		"mail.imap.auth.mechanisms": "XOAUTH2",
+		"mail.imap.auth.plain.disable": true,
+		"mail.imaps.auth.mechanisms": "XOAUTH2",
+		"mail.imaps.auth.plain.disable": true
+	};
+
+	var rootFolder = imapAccount.connect(props);
+	if (!rootFolder || !imapAccount.connected) {
+		if (imapAccount.getLastError()) {
+			throw imapAccount.getLastError();
+		} else {
+			return;
+		}
+	}
+	var folder = imapAccount.getFolder('INBOX');
+	if (folder) {
+		var messageCount = folder.getMessageCount()
+		messageCount = messageCount > 10 ? 10 : messageCount
+		for (var i = 0; i < messageCount -1; i++) {
+			var message = folder.getMessage(i,plugins.MailPro.RECEIVE_MODE.HEADERS_ONLY);
+			if (message) {
+				application.output(message.subject);
+			}
 		}
 	}
 }
