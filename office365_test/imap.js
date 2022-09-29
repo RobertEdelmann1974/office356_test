@@ -14,6 +14,7 @@ var clientSecret = 'ZWt8Q~VS~HN_dE.Qrrmq4ymf-X5c0AesQBNgIcSf';
  * @properties={typeid:35,uuid:"FCC332C7-04AD-4F61-99B0-3235A31802E3"}
  */
 var clientId = '1c62cf99-7745-4589-8f89-55f084f4d2a4';
+
 /**
  * @type {String}
  *
@@ -23,11 +24,39 @@ var state = 'SecretSauce22';
 
 /**
  * @type {String}
- *
- * @properties={typeid:35,uuid:"01B91E4D-2CA9-4770-B569-8FCAC9694614"}
+ * @properties={typeid:35,uuid:"E2328962-8ADD-4E43-BCB5-9E8C7A0CEE9B"}
  */
+var accessToken = null;
 
-var scope = 'openid offline_access https://graph.microsoft.com/mail.read';
+/**
+ * @type {String}
+ * @properties={typeid:35,uuid:"B9A70E1B-EF19-4067-8945-8E029BC2B7D3"}
+ */
+var refreshToken = null
+
+/**
+ * @type {Date}
+ * @properties={typeid:35,uuid:"51EE3C27-E00E-4502-A4C3-80A2554DB120",variableType:93}
+ */
+var accessTokenExpiresOn = null;
+
+
+/**
+ * @type {Array<String>}
+ *
+ * @properties={typeid:35,uuid:"01B91E4D-2CA9-4770-B569-8FCAC9694614",variableType:-4}
+ */
+var scopeList = ['openid', 
+	'offline_access', 
+	'https://outlook.office365.com/Mail.Read', 
+	'https://outlook.office365.com/Mail.Read.Shared', 
+	'https://outlook.office365.com/Mail.ReadBasic', 
+	'https://outlook.office365.com/Mail.ReadWrite', 
+	'https://outlook.office365.com/Mail.ReadWrite.Shared', 
+	'https://outlook.office365.com/Mail.Send', 
+	'https://outlook.office365.com/Mail.Send.Shared', 
+	'https://outlook.office365.com/SMTP.Send', 
+	'https://outlook.office365.com/User.Read'];
 
 /**
  * @type {String}
@@ -56,7 +85,7 @@ var user_email = 'Robert.Edelmann@BauProCheck.de';
 function onO365Authorize (a, args) {
 	if (args && args.hasOwnProperty('code') && args['code']) {
 //		application.output('found code: ' + args['code']);
-		getImapLoginToken(args['code']);
+		getAccessTokenFromAuthCode(args['code']);
 	}
 }
 
@@ -64,15 +93,14 @@ function onO365Authorize (a, args) {
  * the function that starts it all; 
  * @properties={typeid:24,uuid:"1F64392F-2D0D-40BD-BF84-E49473A8EB4E"}
  */
-function authO365_idToken() {
+function authO365_getCode() {
 	var authURL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?';
 	authURL += 'client_id=' + clientId;
 	authURL += '&response_type=code';
 	authURL += '&redirect_uri=' + redirectUrl;
 	authURL += '&response_mode=query';
-	authURL += '&scope=' + scope;
+	authURL += '&scope=' + scopeList.join(' ');
 	authURL += '&state='+state;
-	application.output('URL: ' + authURL);
 	application.showURL(authURL, '_blank');
 }
 
@@ -80,7 +108,7 @@ function authO365_idToken() {
  * @param {String} code code from authorization
  * @properties={typeid:24,uuid:"B577C101-8EDD-46CB-8FA3-D6F673E3D73A"}
  */
-function getImapLoginToken(code) {
+function getAccessTokenFromAuthCode(code) {
 	if (!code) {
 		return;
 	}
@@ -88,38 +116,72 @@ function getImapLoginToken(code) {
 	var request = httpClient.createPostRequest('https://login.microsoftonline.com/common/oauth2/v2.0/token');
 	request.addHeader('Content-Type', 'application/x-www-form-urlencoded');
 	var bodyContent = 'client_id='+clientId;
-	bodyContent += '&scope=https://outlook.office365.com/.default';
+	bodyContent += '&scope='+scopeList.join(' ');
 	bodyContent += '&redirect_uri='+redirectUrl;
 	bodyContent += '&grant_type=authorization_code';
 	bodyContent += '&client_secret='+clientSecret;
 	bodyContent += '&code=' + code;
-	
 	request.setBodyContent(bodyContent);
+	var start = new Date();
 	var response = request.executeRequest();
 	var statusCode = response.getStatusCode()
 	if (statusCode != 200) {
 		application.output('Error processing request, Statuscode ' + statusCode.toString() + '\n' + response.getResponseBody());
 		return;
 	} else {
-//		application.output(response.getResponseBody());
-		/** @type {{token_type: String, scope: String, expires_in: String, ext_expires_in: String, access_token: String, refresh_token: String, id_token: String}} */
-		var imapLoginObject = JSON.parse(response.getResponseBody());
-		if (imapLoginObject && imapLoginObject.hasOwnProperty('access_token') && imapLoginObject.access_token) {
-			getImapFolders(imapLoginObject.access_token);
-		}
+		/** @type {{token_type: String, scope: String, expires_in: Number, ext_expires_in: Number, access_token: String, refresh_token: String, id_token: String}} */
+		var accessTokenObject = JSON.parse(response.getResponseBody());
+		refreshToken = accessTokenObject.refresh_token;
+		accessToken = accessTokenObject.access_token;
+		accessTokenExpiresOn = new Date(start.getTime()  + accessTokenObject.expires_in*1000);
+//		application.output('access token from code expires on ' + accessTokenExpiresOn.toString());
+
+//		immediately get a new set of tokens with longer duration
+		refreshAccessToken();
 	}
 }
 
 /**
+ * @properties={typeid:24,uuid:"7E5F39AE-2774-4DCB-9331-7DC6F5CBA6A0"}
+ */
+function refreshAccessToken() {
+	if (!refreshToken) {
+		return;
+	}
+	var httpClient = plugins.http.createNewHttpClient();
+	var request = httpClient.createPostRequest('https://login.microsoftonline.com/common/oauth2/v2.0/token');
+	request.addHeader('Content-Type', 'application/x-www-form-urlencoded');
+	var bodyContent = 'client_id='+clientId;
+	bodyContent += '&grant_type=refresh_token';
+	bodyContent += '&scope='+scopeList.join(' ');
+	bodyContent += '&refresh_token='+refreshToken;
+	bodyContent += '&client_secret='+clientSecret;
+	request.setBodyContent(bodyContent);
+
+	var start = new Date();
+	var response = request.executeRequest();
+	var statusCode = response.getStatusCode()
+	if (statusCode != 200) {
+		application.output('Error processing request, Statuscode ' + statusCode.toString() + '\n' + response.getResponseBody());
+		return;
+	} else {
+		/** @type {{token_type: String, scope: String, expires_in: Number, ext_expires_in: Number, access_token: String, refresh_token: String, id_token: String}} */
+		var accessTokenObject = JSON.parse(response.getResponseBody());
+		accessToken = accessTokenObject.access_token;
+		refreshToken = accessTokenObject.refresh_token;
+		accessTokenExpiresOn = new Date(start.getTime()  + accessTokenObject.expires_in*1000);
+//		application.output('acces token expires on: ' + accessTokenExpiresOn.toString())
+//		getImapFolders();
+		getImapMails();
+	}
+
+}
+
+/**
  * uses the access_token to authenticate
- * @param {String} accessToken
- *
  * @properties={typeid:24,uuid:"66279104-70F9-4088-999A-AD0471CA2786"}
  */
-function getImapFolders(accessToken) {
-	if (!accessToken) {
-		return;
-	}
+function getImapFolders() {
 	var imapAccount = plugins.MailPro.ImapAccount('emailaccount', 'outlook.office365.com', user_email, accessToken);
 	imapAccount.port = 993
 	var props = {
@@ -145,15 +207,14 @@ function getImapFolders(accessToken) {
 			return;
 		}
 	}
-	var folder = imapAccount.getFolder('INBOX');
-	if (folder) {
-		var messageCount = folder.getMessageCount()
-		messageCount = messageCount > 10 ? 10 : messageCount
-		for (var i = 0; i < messageCount -1; i++) {
-			var message = folder.getMessage(i,plugins.MailPro.RECEIVE_MODE.HEADERS_ONLY);
-			if (message) {
-				application.output(message.subject);
-			}
+	var folder = imapAccount.getRootFolder()
+	var subFolders = folder.getSubfolders();
+	for (var iFolders = 11; iFolders < subFolders.length; iFolders++) {
+		try {
+			application.output(subFolders[iFolders].fullName + ' -> ' + subFolders[iFolders].getMessageCount().toString());
+		} catch (e) {
+			application.output('Error Accessing Folder: ' + e.name + ' -> ' + e.message + '\n' + e.stack,LOGGINGLEVEL.ERROR)
+			break;
 		}
 	}
 }
@@ -161,15 +222,9 @@ function getImapFolders(accessToken) {
 
 /**
  * uses the access_token to authenticate
- * @param {String} accessToken
- *
- *
  * @properties={typeid:24,uuid:"5A1F2AC8-8A94-40F4-8099-2DED882EAFBE"}
  */
-function getImapMails(accessToken) {
-	if (!accessToken) {
-		return;
-	}
+function getImapMails() {
 	var imapAccount = plugins.MailPro.ImapAccount('emailaccount', 'outlook.office365.com', user_email, accessToken);
 	imapAccount.port = 993
 	var props = {
@@ -198,12 +253,7 @@ function getImapMails(accessToken) {
 	var folder = imapAccount.getFolder('INBOX');
 	if (folder) {
 		var messageCount = folder.getMessageCount()
-		messageCount = messageCount > 10 ? 10 : messageCount
-		for (var i = 0; i < messageCount -1; i++) {
-			var message = folder.getMessage(i,plugins.MailPro.RECEIVE_MODE.HEADERS_ONLY);
-			if (message) {
-				application.output(message.subject);
-			}
-		}
+		var messageUIDsFolder = folder.getMessageUids()
+		application.output('there are ' + messageCount.toString() + ' messages in the folder:\n' + messageUIDsFolder.join(', '));
 	}
 }
