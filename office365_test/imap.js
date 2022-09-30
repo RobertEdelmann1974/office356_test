@@ -94,14 +94,16 @@ function onO365Authorize (a, args) {
  * @properties={typeid:24,uuid:"1F64392F-2D0D-40BD-BF84-E49473A8EB4E"}
  */
 function authO365_getCode() {
-	var authURL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?';
-	authURL += 'client_id=' + clientId;
-	authURL += '&response_type=code';
-	authURL += '&redirect_uri=' + redirectUrl;
-	authURL += '&response_mode=query';
-	authURL += '&scope=' + scopeList.join(' ');
-	authURL += '&state='+state;
-	application.showURL(authURL, '_blank');
+	var oauthOffice365 = plugins.oauth.serviceBuilder(clientId);        //client/application ID
+	oauthOffice365.clientSecret(clientSecret);        //client secret
+    oauthOffice365.defaultScope(scopeList.join(' ')); //Access IMAP  / POP3
+    oauthOffice365.state(state)                       //session state
+    oauthOffice365.deeplink("onO365Authorize")        //OPTIONAL deeplink method name or last part of your redirect URL, see docs
+                                        //if missing, a global method with the name 'deeplink_svy_oauth' will be generated
+    oauthOffice365.callback(onO365Authorize, 30)           //see function below, timeout is 30 seconds
+	oauthOffice365.responseMode('query');
+    oauthOffice365.responseType('code');
+    oauthOffice365.build(plugins.oauth.OAuthProviders.MICROSOFT_AD);
 }
 
 /**
