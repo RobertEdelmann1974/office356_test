@@ -32,7 +32,7 @@ var accessToken = null;
  * @type {String}
  * @properties={typeid:35,uuid:"B9A70E1B-EF19-4067-8945-8E029BC2B7D3"}
  */
-var refreshToken = null
+var refreshToken = '0.ATEAaAW0JnrAgUipFcmNPQAbo5nPYhxFd4lFj4lV8IT00qQxACo.AgABAAEAAAD--DLA3VO7QrddgJg7WevrAgDs_wQA9P_1sEv-fTdwGLzV6O1K5SVvxEfXD18uW0TcYagFh8_ZNTcb3dXWpZnCDsoQ8X6egMC2QNQVbkquQpG4eEHLsUlpVt2xawL5q9jNahP49lpxRoLmXaADLA46fiX0XGD4oid6_-IqLln1XRUDVatw4Bc9Wxac00SNwm8PDSpBWg5grESU_YDNsKhXQnPObbwQau7LTcPlm7_aXEVx3nJvyrj451kgrx-65VNW_TUfArV5Qs5SrqoM_9SfCTpCyHgN1l7b859tpzbznrhHxqkaEGbFhOJcl4PXH7CgoMWxjHBb37JW2-dJxHQsVgyV_wOL3BlNyyecTy9c8IeUFohhIrj3ZuQF-i3pr9Lh_0E87vQGwi6c3glbaIi-JGY2fcLxHK5iuhnbfmLZWXHuy0yNSR58UaOauLad6ef1dj8qcq35dwYNGpibIjeKP3qbQPbXJiGbxa4pxMkJDriPYARtrZAgA5RC7Ykuq9kJTFE-vQKbL1qXZhJ3AvjBolQLyqjENXD-FsqQuPrenigArCE_adAOwEeMNlhjbcxT_ircBQAc1pCdrnvJ67CrHe1XKZXuZJ4uzhOu9JVx0o7QW4JqNneKQA5SzeAWvVFyczxY-YgTAxj6iVok7gQKXTH_vVb1DFqhgNzJ7fFumUlt4GEBp2a59QBZmJZmEpElR-Vd-657bglInGr1XuRA2h4vmNw30p8RaKP5MJqPUQlDRC9mFgXIIIMlZ36RoMvyZtwp90vtN8Ii7X6l-rEkNi8zO5w85Y9YyUr_nnc';
 
 /**
  * @type {Date}
@@ -40,6 +40,11 @@ var refreshToken = null
  */
 var accessTokenExpiresOn = null;
 
+/**
+ * @type {plugins.oauth.OAuthService}
+ * @properties={typeid:35,uuid:"40B1D210-38DA-417C-B12C-F3478273D4D9",variableType:-4}
+ */
+var office365Service = null;
 
 /**
  * @type {Array<String>}
@@ -71,21 +76,31 @@ var redirectUrl = 'http://localhost:8183/solutions/office365_test/m/onO365Author
  * @properties={typeid:35,uuid:"C9E93C3A-0D2B-4288-A63C-CEF40FABE420"}
  */
 var user_email = 'Robert.Edelmann@BauProCheck.de';
-	
+
 /**
- * Callback function, receives informations after users accepts login via OAuth
- * has to be in scopes.globals of the main solution
- * information should be transferred to the correct scope via
- * scopes.office365.onO365Authorize(a,args);
- * @param a
- * @param args
+ * Using the OAuth-Service to get new refresh_token/access_token 
+ * @param result
+ * @param auth_outcome
  *
- * @properties={typeid:24,uuid:"10911D41-B495-4CAF-AE65-C565B0211A8D"}
+ * @properties={typeid:24,uuid:"674ACAE4-920C-4C12-8622-A32DD128F86E"}
  */
-function onO365Authorize (a, args) {
-	if (args && args.hasOwnProperty('code') && args['code']) {
-//		application.output('found code: ' + args['code']);
-		getAccessTokenFromAuthCode(args['code']);
+function onO365Authorize(result, auth_outcome) {
+	if (result) {
+		//SUCCESS
+		/** @type {plugins.oauth.OAuthService} */
+		office365Service = auth_outcome;
+		var idToken = office365Service.getIdToken();
+		accessToken = office365Service.getAccessToken()
+		refreshToken = office365Service.getRefreshToken();
+		accessTokenExpiresOn = new Date(new Date().getTime() + 1000*office365Service.getAccessTokenLifetime());
+		application.output(accessTokenExpiresOn);
+		if (!accessToken) {
+			application.output('could not get token from service.');
+			return;
+		}
+	} else {
+		//ERROR
+		application.output("ERROR " + auth_outcome, LOGGINGLEVEL.ERROR);
 	}
 }
 
@@ -94,56 +109,21 @@ function onO365Authorize (a, args) {
  * @properties={typeid:24,uuid:"1F64392F-2D0D-40BD-BF84-E49473A8EB4E"}
  */
 function authO365_getCode() {
-	var oauthOffice365 = plugins.oauth.serviceBuilder(clientId);        //client/application ID
-	oauthOffice365.clientSecret(clientSecret);        //client secret
-    oauthOffice365.defaultScope(scopeList.join(' ')); //Access IMAP  / POP3
-    oauthOffice365.state(state)                       //session state
-    oauthOffice365.deeplink("onO365Authorize")        //OPTIONAL deeplink method name or last part of your redirect URL, see docs
-                                        //if missing, a global method with the name 'deeplink_svy_oauth' will be generated
-    oauthOffice365.callback(onO365Authorize, 30)           //see function below, timeout is 30 seconds
+	var oauthOffice365 = plugins.oauth.serviceBuilder(clientId);        
+	oauthOffice365.clientSecret(clientSecret);        
+    oauthOffice365.defaultScope(scopeList.join(' ')); 
+    oauthOffice365.state(state)                       
+    oauthOffice365.deeplink("onO365Authorize")
+    oauthOffice365.callback(onO365Authorize, 30)
 	oauthOffice365.responseMode('query');
     oauthOffice365.responseType('code');
     oauthOffice365.build(plugins.oauth.OAuthProviders.MICROSOFT_AD);
 }
 
 /**
- * @param {String} code code from authorization
- * @properties={typeid:24,uuid:"B577C101-8EDD-46CB-8FA3-D6F673E3D73A"}
- */
-function getAccessTokenFromAuthCode(code) {
-	if (!code) {
-		return;
-	}
-	var httpClient = plugins.http.createNewHttpClient();
-	var request = httpClient.createPostRequest('https://login.microsoftonline.com/common/oauth2/v2.0/token');
-	request.addHeader('Content-Type', 'application/x-www-form-urlencoded');
-	var bodyContent = 'client_id='+clientId;
-	bodyContent += '&scope='+scopeList.join(' ');
-	bodyContent += '&redirect_uri='+redirectUrl;
-	bodyContent += '&grant_type=authorization_code';
-	bodyContent += '&client_secret='+clientSecret;
-	bodyContent += '&code=' + code;
-	request.setBodyContent(bodyContent);
-	var start = new Date();
-	var response = request.executeRequest();
-	var statusCode = response.getStatusCode()
-	if (statusCode != 200) {
-		application.output('Error processing request, Statuscode ' + statusCode.toString() + '\n' + response.getResponseBody());
-		return;
-	} else {
-		/** @type {{token_type: String, scope: String, expires_in: Number, ext_expires_in: Number, access_token: String, refresh_token: String, id_token: String}} */
-		var accessTokenObject = JSON.parse(response.getResponseBody());
-		refreshToken = accessTokenObject.refresh_token;
-		accessToken = accessTokenObject.access_token;
-		accessTokenExpiresOn = new Date(start.getTime()  + accessTokenObject.expires_in*1000);
-//		application.output('access token from code expires on ' + accessTokenExpiresOn.toString());
-
-//		immediately get a new set of tokens with longer duration
-		refreshAccessToken();
-	}
-}
-
-/**
+ * When there's an existing (and valid) refresh_token you can get a 
+ * fresh set of access_token and refresh_token manually
+ * 
  * @properties={typeid:24,uuid:"7E5F39AE-2774-4DCB-9331-7DC6F5CBA6A0"}
  */
 function refreshAccessToken() {
@@ -172,8 +152,6 @@ function refreshAccessToken() {
 		accessToken = accessTokenObject.access_token;
 		refreshToken = accessTokenObject.refresh_token;
 		accessTokenExpiresOn = new Date(start.getTime()  + accessTokenObject.expires_in*1000);
-//		application.output('acces token expires on: ' + accessTokenExpiresOn.toString())
-//		getImapFolders();
 		getImapMails();
 	}
 
@@ -220,7 +198,6 @@ function getImapFolders() {
 		}
 	}
 }
-
 
 /**
  * uses the access_token to authenticate
