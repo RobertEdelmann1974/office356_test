@@ -236,3 +236,45 @@ function getImapMails() {
 		application.output('there are ' + messageCount.toString() + ' messages in the folder:\n' + messageUIDsFolder.join(', '));
 	}
 }
+
+/**
+ * @properties={typeid:24,uuid:"3B96DE36-DA6F-4A40-BDFD-DEA1C67A879A"}
+ */
+function sendSMTPMailPro() {
+	var smtpAccount = plugins.MailPro.SMTPAccount('smtp.office365.com');
+	smtpAccount.port = 587;
+	smtpAccount.userName = '<username>';
+	smtpAccount.requiresAuthentication = true;
+	smtpAccount.useTLS = true;
+	smtpAccount.password =  accessToken;
+	smtpAccount.addSmtpProperty('mail.smtp.auth.mechanisms','XOAUTH2');
+	smtpAccount.addSmtpProperty('mail.imap.sasl.enable', 'true');
+	var connect = smtpAccount.connect();
+	if (connect && smtpAccount.connected) {
+		var mailMsg = smtpAccount.createMessage('<to>','<from>','New message','Messagebody.');
+		var success = smtpAccount.sendMessage(mailMsg);
+		if (success) {
+			application.output('message sent successfully.')
+		}
+	}
+}
+
+/**
+ * @properties={typeid:24,uuid:"EDD0F148-059C-4B96-A204-00AE59F4110F"}
+ */
+function sentSMTPServoyMail() {
+	var mailProperties = new Array();
+	mailProperties.push('mail.smtp.starttls.enable=true')
+	mailProperties.push('mail.transport.protocol=smtp')
+	mailProperties.push('security.require-ssl=true')
+	mailProperties.push('mail.smtp.auth=true')
+	mailProperties.push('mail.smtp.auth.mechanisms=XOAUTH2');
+	mailProperties.push('mail.imap.sasl.enable=true');
+	mailProperties.push('mail.smtp.auth=true');
+	mailProperties.push('mail.smtp.port=587');
+	mailProperties.push('mail.smtp.host=smtp.office365.com');
+	mailProperties.push('mail.smtp.auth=true');
+	mailProperties.push('mail.smtp.username=<username');
+	mailProperties.push('mail.smtp.password='+accessToken);
+	plugins.mail.sendMail('<to>','<from>','New Message','Messagebody',null,null,null,mailProperties);
+}
