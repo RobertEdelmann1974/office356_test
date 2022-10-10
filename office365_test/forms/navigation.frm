@@ -31,6 +31,17 @@ containedForm:"2BFFDC74-F931-494F-8979-B038CE979854",
 name:"smtp",
 svyUUID:"21D8784F-D90D-4A64-84F5-BE2343EDF85E",
 text:"SMTP"
+},
+{
+containedForm:"7F13A9A7-EC6C-49F3-AF51-8A08B40F48FC",
+name:"info_oauth_graph",
+svyUUID:"0DDA66D7-C855-4738-8F3B-07FBF181EC0F",
+text:"graph IMAP"
+},
+{
+containedForm:"03A51A0F-E5BD-48B9-B34B-CBEC2F4C36C3",
+svyUUID:"DE2C6216-45CE-4686-AFA4-050AC646BD5C",
+text:"graph - send mail"
 }
 ]
 },
