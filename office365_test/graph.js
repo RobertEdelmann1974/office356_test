@@ -239,7 +239,34 @@ function sendMailGraph() {
  * @properties={typeid:24,uuid:"54CAEE1A-ACEA-4383-9CCE-C27776DF8F8D"}
  */
 function listMail() {
-	mailInfo = 'not yet implemented.'
+	mailInfo = ''
+	if (!accessToken) {
+		return;
+	}
+	var url = 'https://graph.microsoft.com/v1.0/me/messages?$select=sender,subject';
+	var mailsfetched = 0
+	do {
+		var response = getGraphData(url);
+		if (response) {
+			
+			var responseObject = JSON.parse(response);
+			/** Array<{sender: String, subject: String}> */
+			var mailList = responseObject.value
+			for (var indFolder = 0; indFolder < mailList.length; indFolder++) {
+				mailInfo += mailList[indFolder].subject + '\n';
+				mailsfetched++
+			}
+			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink'] && mailsfetched < 800) {
+				application.output('list goes on: ' + responseObject['@odata.nextLink']);
+				url = responseObject['@odata.nextLink'];
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	} while (true);
+	application.output(mailInfo);
 }
 
 /**
