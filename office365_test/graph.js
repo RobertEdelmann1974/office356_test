@@ -258,7 +258,7 @@ function listFoldersGraph() {
 			/** Array<{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}> */
 			var folderList = responseObject.value
 			for (var indFolder = 0; indFolder < folderList.length; indFolder++) {
-				folderInfo += folderList[indFolder].displayName + '\n'
+				folderInfo += folderList[indFolder].displayName + ' (' + folderList[indFolder].totalItemCount.toString() + ' entries, ' + folderList[indFolder].childFolderCount.toString() + ' subfolders)\n'
 			}
 			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink']) {
 				application.output('list goes on: ' + responseObject['@odata.nextLink']);
