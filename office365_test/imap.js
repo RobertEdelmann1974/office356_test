@@ -197,7 +197,6 @@ function refreshAccessToken() {
 		accessTokenExpiresOn = new Date(start.getTime()  + accessTokenObject.expires_in*1000);
 		idToken = accessTokenObject.id_token;
 	}
-
 }
 
 /**
