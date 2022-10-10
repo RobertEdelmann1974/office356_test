@@ -111,6 +111,21 @@ var email_subject = 'subject';
 var email_body = 'email_body';
 
 /**
+ * @type {String}
+ *
+ * @properties={typeid:35,uuid:"DAAAE5C5-2B89-4E96-B059-64ABFCDE508A"}
+ */
+var folderInfo = '';
+	
+
+/**
+ * @type {String}
+ *
+ * @properties={typeid:35,uuid:"D06EE1DC-8B53-423B-B0DE-945B81DAEDD2"}
+ */
+var mailInfo = '';
+
+/**
  * Using the OAuth-Service to get new refresh_token/access_token
  * @param result
  * @param auth_outcome
@@ -218,4 +233,66 @@ function sendMailGraph() {
 	var response = request.executeRequest();
 	var statusCode = response.getStatusCode();
 	application.output('Status: ' + statusCode + '\n'+response.getResponseBody());
+}
+
+/**
+ * @properties={typeid:24,uuid:"54CAEE1A-ACEA-4383-9CCE-C27776DF8F8D"}
+ */
+function listMail() {
+	mailInfo = 'not yet implemented.'
+}
+
+/**
+ * @properties={typeid:24,uuid:"39239903-7FAC-436E-8FB3-47D8B8892291"}
+ */
+function listFoldersGraph() {
+	folderInfo = '';
+	if (!accessToken) {
+		return;
+	}
+	var url = 'https://graph.microsoft.com/v1.0/me/mailFolders';
+	do {
+		var response = getGraphData(url);
+		if (response) {
+			var responseObject = JSON.parse(response);
+			/** Array<{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}> */
+			var folderList = responseObject.value
+			for (var indFolder = 0; indFolder < folderList.length; indFolder++) {
+				folderInfo += folderList[indFolder].displayName + '\n'
+			}
+			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink']) {
+				application.output('list goes on: ' + responseObject['@odata.nextLink']);
+				url = responseObject['@odata.nextLink'];
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	} while (true);
+	application.output(folderInfo);
+}
+
+/**
+ * @param {String} url
+ * @return {String}
+ * @properties={typeid:24,uuid:"69C9FDC8-7879-43B5-B467-73D5CB5BBD4C"}
+ */
+function getGraphData(url) {
+	if (!url || !url.toLowerCase().startsWith('https://')) {
+		return null;
+	}
+	var httpClient = plugins.http.createNewHttpClient();
+	var request = httpClient.createGetRequest(url);
+	request.addHeader('Content-Type', 'application/json');
+	request.addHeader('Authorization', accessToken)
+	var response = request.executeRequest();
+	var statusCode = response.getStatusCode();
+	if (statusCode >= 200 && statusCode <= 299) {
+		application.output('\n************************\n'+response.getResponseBody()+'\n************************\n')
+		return response.getResponseBody()
+	} else {
+		application.output('error fetching data. Statuscode: ' + response.getStatusCode() + '\n' + response.getResponseBody(),LOGGINGLEVEL.ERROR);
+	}
+	return null;
 }
