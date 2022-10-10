@@ -42,6 +42,11 @@ text:"graph IMAP"
 containedForm:"03A51A0F-E5BD-48B9-B34B-CBEC2F4C36C3",
 svyUUID:"DE2C6216-45CE-4686-AFA4-050AC646BD5C",
 text:"graph - send mail"
+},
+{
+containedForm:"5F1991F2-B478-4444-A5C1-AE90BB890E65",
+svyUUID:"82E8D153-061B-4E8F-9F47-75C9A965CA4A",
+text:"graph - fetch data"
 }
 ]
 },
