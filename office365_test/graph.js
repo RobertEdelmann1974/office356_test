@@ -259,10 +259,17 @@ function listMail() {
 		if (response) {
 			
 			var responseObject = JSON.parse(response);
-			/** Array<{sender: String, subject: String}> */
+
+			/** Array<{sender: Object, subject: String}> */
 			var mailList = responseObject.value
 			for (var indFolder = 0; indFolder < mailList.length; indFolder++) {
-				mailInfo += mailList[indFolder].subject + '\n';
+				var mailObject = mailList[indFolder] 
+				var senderInfo = '';
+				if (mailObject.hasOwnProperty('sender') && mailObject['sender'].hasOwnProperty('emailAddress'))
+				/** @type {{name: String, address: String}} */
+				var emailAddress = mailList[indFolder].sender.emailAddress;
+				senderInfo = (emailAddress.name ? emailAddress.name : '') + (emailAddress.address ? ' <' + emailAddress.address +'> - ' : '')
+				mailInfo += senderInfo + '-> ' + mailList[indFolder].subject + '\n';
 				mailsfetched++
 			}
 			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink'] && mailsfetched < maxMails) {
