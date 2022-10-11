@@ -126,6 +126,15 @@ var folderInfo = '';
 var mailInfo = '';
 
 /**
+ * maximum number of mails to fetch
+ *  
+ * @type {Number}
+ *
+ * @properties={typeid:35,uuid:"97DB9AC2-B7EA-4703-8A0D-EDC4AE95B9D5",variableType:4}
+ */
+var maxMails = 300;
+
+/**
  * Using the OAuth-Service to get new refresh_token/access_token
  * @param result
  * @param auth_outcome
@@ -256,7 +265,7 @@ function listMail() {
 				mailInfo += mailList[indFolder].subject + '\n';
 				mailsfetched++
 			}
-			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink'] && mailsfetched < 800) {
+			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink'] && mailsfetched < maxMails) {
 				application.output('list goes on: ' + responseObject['@odata.nextLink']);
 				url = responseObject['@odata.nextLink'];
 			} else {
