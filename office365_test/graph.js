@@ -135,6 +135,12 @@ var mailInfo = '';
 var maxMails = 300;
 
 /**
+ * @type {JSDataSet}
+ * @properties={typeid:35,uuid:"340FA1FC-6A89-4A18-BBBC-B23DC975738A",variableType:-4}
+ */
+var dsImapOrdner = null;
+
+/**
  * Using the OAuth-Service to get new refresh_token/access_token
  * @param result
  * @param auth_outcome
@@ -245,9 +251,11 @@ function sendMailGraph() {
 }
 
 /**
+ * @param {JSEvent} jsEvent
+ * @param {String} [folderId]
  * @properties={typeid:24,uuid:"54CAEE1A-ACEA-4383-9CCE-C27776DF8F8D"}
  */
-function listMail() {
+function listMail(jsEvent, folderId) {
 	mailInfo = ''
 	if (!accessToken) {
 		return;
@@ -282,26 +290,29 @@ function listMail() {
 			break;
 		}
 	} while (true);
-	application.output(mailInfo);
 }
 
 /**
+ * @param {JSEvent} jsEvent
  * @properties={typeid:24,uuid:"39239903-7FAC-436E-8FB3-47D8B8892291"}
  */
-function listFoldersGraph() {
+function listFoldersGraph(jsEvent) {
 	folderInfo = '';
 	if (!accessToken) {
 		return;
 	}
-	var url = 'https://graph.microsoft.com/v1.0/me/mailFolders';
+	var url = 'https://graph.microsoft.com/v1.0/me/mailFolders/';
 	do {
 		var response = getGraphData(url);
 		if (response) {
+			/**  @type {{value: Array<E>,@odata.nextLink: String}} */
 			var responseObject = JSON.parse(response);
-			/** Array<{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}> */
-			var folderList = responseObject.value
+			/**  @type Array<{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}> */
+			var folderList = responseObject['value'];
 			for (var indFolder = 0; indFolder < folderList.length; indFolder++) {
-				folderInfo += folderList[indFolder].displayName + ' (' + folderList[indFolder].totalItemCount.toString() + ' entries, ' + folderList[indFolder].childFolderCount.toString() + ' subfolders)\n'
+				/** @type {{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}} */
+				var folderObject = folderList[indFolder]
+				folderInfo += folderObject.displayName + ' (' + folderObject.totalItemCount.toString() + ' entries, ' + folderObject.childFolderCount.toString() + ' subfolders)\n'
 			}
 			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink']) {
 				application.output('list goes on: ' + responseObject['@odata.nextLink']);
@@ -313,7 +324,6 @@ function listFoldersGraph() {
 			break;
 		}
 	} while (true);
-	application.output(folderInfo);
 }
 
 /**
@@ -338,4 +348,95 @@ function getGraphData(url) {
 		application.output('error fetching data. Statuscode: ' + response.getStatusCode() + '\n' + response.getResponseBody(),LOGGINGLEVEL.ERROR);
 	}
 	return null;
+}
+
+/**
+ * @properties={typeid:24,uuid:"5C3D180A-0EA4-4F17-B5BF-0EAAAE36B72A"}
+ */
+function getFolderTree() {
+	dsImapOrdner = databaseManager.createEmptyDataSet(0, ['folder_name', 'parent_folder_id', 'folder_id', 'flag', 'has_checkbox']);
+	if (!accessToken) {
+		return;
+	}
+	var url = 'https://graph.microsoft.com/v1.0/me/mailFolders/';
+	do {
+		var response = getGraphData(url);
+		if (response) {
+			/** @type {{value: Array<E>,@odata.nextLink: String}} */
+			var responseObject = JSON.parse(response);
+			/** @type Array<{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}> */
+			var folderList = responseObject['value'];
+			for (var indFolder = 0; indFolder < folderList.length; indFolder++) {
+				/** @type {{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}} */
+				var folderObject = folderList[indFolder]
+				folderInfo += folderObject.displayName + ' (' + folderObject.totalItemCount.toString() + ' entries, ' + folderObject.childFolderCount.toString() + ' subfolders)\n'
+				dsImapOrdner.addRow([folderObject.displayName, null, folderObject.id, 0, 0]);
+				if (folderObject.childFolderCount) {
+					getSubFolders(folderObject.id);
+				}
+			}
+			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink']) {
+				application.output('list goes on: ' + responseObject['@odata.nextLink']);
+				url = responseObject['@odata.nextLink'];
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	} while (true);
+	if (dsImapOrdner.getMaxRowIndex()) {
+		var ds = dsImapOrdner.createDataSource('folder_list', [JSColumn.TEXT, JSColumn.TEXT, JSColumn.TEXT, JSColumn.NUMBER, JSColumn.NUMBER]);
+		var jsRelation = solutionModel.getRelation('folder_children');
+		if (!jsRelation) {
+			jsRelation = solutionModel.newRelation('folder_children', ds, ds, JSRelation.LEFT_OUTER_JOIN);
+			jsRelation.newRelationItem('folder_id', '=', 'parent_folder_id');
+		}
+
+		history.removeForm('tree_imp');
+		solutionModel.removeForm('tree_imp');
+		
+		var jsForm = solutionModel.cloneForm('tree_imp', solutionModel.getForm('folder_tree'));
+		jsForm.dataSource = ds;
+		
+		var window = application.createWindow('folder_tree', JSWindow.MODAL_DIALOG);
+		window.resizable = true
+		window.title = 'Office 365 - folders'
+		window.show(jsForm.name);
+	}
+}
+
+/**
+ * @param parentFolderId
+ *
+ * @properties={typeid:24,uuid:"DBAE35D5-4B3B-44CC-B215-B1B48067EEE7"}
+ */
+function getSubFolders(parentFolderId) {
+	var url = 'https://graph.microsoft.com/v1.0/me/mailFolders/'+parentFolderId+'/childfolders/';
+	do {
+		var response = getGraphData(url);
+		if (response) {
+			/**  @type {{value: Array<{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}>, @odata.nextLink: String}} */
+			var responseObject = JSON.parse(response);
+			/** @type Array<{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}> */
+			var folderList = responseObject['value'];
+			for (var indFolder = 0; indFolder < folderList.length; indFolder++) {
+				/** @type {{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}} */
+				var folderObject = folderList[indFolder]
+				folderInfo += folderObject.displayName + ' (' + folderObject.totalItemCount.toString() + ' entries, ' + folderObject.childFolderCount.toString() + ' subfolders)\n'
+				dsImapOrdner.addRow([folderObject.displayName, folderObject.parentFolderId, folderObject.id, 0, 0]);
+				if (folderObject.childFolderCount) {
+					getSubFolders(folderObject.id);
+				}
+			}
+			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink']) {
+				application.output('list goes on: ' + responseObject['@odata.nextLink']);
+				url = responseObject['@odata.nextLink'];
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	} while (true);
 }
