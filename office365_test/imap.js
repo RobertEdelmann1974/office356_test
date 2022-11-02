@@ -174,7 +174,13 @@ function refreshAccessToken() {
 		return;
 	}
 	var httpClient = plugins.http.createNewHttpClient();
-	var request = httpClient.createPostRequest('https://login.microsoftonline.com/common/oauth2/v2.0/token');
+	var url
+	if (scopes.imap.tenantId) {
+		url = 'https://login.microsoftonline.com/' + scopes.imap.tenantId + '/oauth2/v2.0/token';
+	} else {
+		url = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+	}
+	var request = httpClient.createPostRequest(url);
 	request.addHeader('Content-Type', 'application/x-www-form-urlencoded');
 	var bodyContent = 'client_id='+clientId;
 	bodyContent += '&grant_type=refresh_token';
@@ -204,6 +210,7 @@ function refreshAccessToken() {
  * @properties={typeid:24,uuid:"66279104-70F9-4088-999A-AD0471CA2786"}
  */
 function getImapFolders() {
+	email_folder_info = ''
 	var imapAccount = plugins.MailPro.ImapAccount('emailaccount', 'outlook.office365.com', email_from, accessToken);
 	imapAccount.port = 993
 	var props = {
@@ -246,6 +253,7 @@ function getImapFolders() {
  * @properties={typeid:24,uuid:"5A1F2AC8-8A94-40F4-8099-2DED882EAFBE"}
  */
 function getImapMails() {
+	email_inbox_info = ''
 	var imapAccount = plugins.MailPro.ImapAccount('emailaccount', 'outlook.office365.com', email_from, accessToken);
 	imapAccount.port = 993
 	var props = {
