@@ -342,10 +342,10 @@ function getGraphData(url) {
 	var response = request.executeRequest();
 	var statusCode = response.getStatusCode();
 	if (statusCode >= 200 && statusCode <= 299) {
-		application.output('\n************************\n'+response.getResponseBody()+'\n************************\n')
+//		application.output('\n************************\n'+response.getResponseBody()+'\n************************\n')
 		return response.getResponseBody()
 	} else {
-		application.output('error fetching data. Statuscode: ' + response.getStatusCode() + '\n' + response.getResponseBody(),LOGGINGLEVEL.ERROR);
+//		application.output('error fetching data. Statuscode: ' + response.getStatusCode() + '\n' + response.getResponseBody(),LOGGINGLEVEL.ERROR);
 	}
 	return null;
 }
@@ -372,11 +372,11 @@ function getFolderTree() {
 				folderInfo += folderObject.displayName + ' (' + folderObject.totalItemCount.toString() + ' entries, ' + folderObject.childFolderCount.toString() + ' subfolders)\n'
 				dsImapOrdner.addRow([folderObject.displayName, null, folderObject.id, 0, 0]);
 				if (folderObject.childFolderCount) {
-					getSubFolders(folderObject.id);
+					getSubFolders(folderObject.id, folderObject.displayName);
 				}
 			}
 			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink']) {
-				application.output('list goes on: ' + responseObject['@odata.nextLink']);
+//				application.output('list goes on: ' + responseObject['@odata.nextLink']);
 				url = responseObject['@odata.nextLink'];
 			} else {
 				break;
@@ -407,11 +407,12 @@ function getFolderTree() {
 }
 
 /**
- * @param parentFolderId
+ * @param {String} parentFolderId
+ * @param {String} parentFolderPath
  *
  * @properties={typeid:24,uuid:"DBAE35D5-4B3B-44CC-B215-B1B48067EEE7"}
  */
-function getSubFolders(parentFolderId) {
+function getSubFolders(parentFolderId, parentFolderPath) {
 	var url = 'https://graph.microsoft.com/v1.0/me/mailFolders/'+parentFolderId+'/childfolders/';
 	do {
 		var response = getGraphData(url);
@@ -424,13 +425,14 @@ function getSubFolders(parentFolderId) {
 				/** @type {{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}} */
 				var folderObject = folderList[indFolder]
 				folderInfo += folderObject.displayName + ' (' + folderObject.totalItemCount.toString() + ' entries, ' + folderObject.childFolderCount.toString() + ' subfolders)\n'
+				application.output(parentFolderPath + ' - ' + folderObject.displayName);
 				dsImapOrdner.addRow([folderObject.displayName, folderObject.parentFolderId, folderObject.id, 0, 0]);
 				if (folderObject.childFolderCount) {
-					getSubFolders(folderObject.id);
+					getSubFolders(folderObject.id,parentFolderPath + ' - ' + folderObject.displayName);
 				}
 			}
 			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink']) {
-				application.output('list goes on: ' + responseObject['@odata.nextLink']);
+//				application.output('list goes on: ' + responseObject['@odata.nextLink']);
 				url = responseObject['@odata.nextLink'];
 			} else {
 				break;
