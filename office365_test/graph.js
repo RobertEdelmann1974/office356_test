@@ -442,3 +442,135 @@ function getSubFolders(parentFolderId, parentFolderPath) {
 		}
 	} while (true);
 }
+
+/**
+ * @param {String} [id]
+ * @return {String}
+ * @properties={typeid:24,uuid:"5FFE3D4A-9DC0-4CA8-89FA-93DEB4E3E8A0"}
+ */
+function getEMLForID(id) {
+	if (!id) {
+		id = mailId
+	}
+	var url = 'https://graph.microsoft.com/v1.0/me/messages/' + id + '/$value';	
+
+	var response = getGraphData(url);
+	if (response) {
+		return response
+	} else {
+		application.output('could not fetch message.')
+	}
+	return null;
+}
+
+
+/**
+ * @param {String} [id]
+ * @properties={typeid:24,uuid:"4B6BC09F-C9A0-4C74-8ED5-4AB977F32676"}
+ */
+function getAttachmentsForID(id) {
+	if (!id) {
+		id = mailId
+	}
+	var url = 'https://graph.microsoft.com/v1.0/me/messages/' + id + '/attachments?$select=Name'
+	do {
+		var response = getGraphData(url);
+		if (response) {
+			application.output(response);
+			var responseObject = JSON.parse(response);
+			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink'] && mailsfetched < maxMails) {
+				url = responseObject['@odata.nextLink'];
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	} while (true); 	
+}
+
+/**
+ * @param {String} [id]
+ * @properties={typeid:24,uuid:"92012B75-96FE-4345-A9B6-8C9A17A7A607"}
+ */
+function getReceipientsFromID(id) {
+	if (!id) {
+		id = mailId
+	}
+	mailInfo = ''
+	var url = 'https://graph.microsoft.com/v1.0/me/MailFolders/Inbox/messages/' + id
+	var response = getGraphData(url);
+	if (response) {
+//		application.output(response)
+		var mailObject = JSON.parse(response);
+		var senderInfo = '';
+		var toAddresses = [];
+		var ccAddresses = [];
+		var bccAddresses = [];
+		if (mailObject.hasOwnProperty('sender') && mailObject['sender'].hasOwnProperty('emailAddress')) {
+			/** @type {{name: String, address: String}} */
+			var emailAddress = mailObject.sender.emailAddress;
+			senderInfo = (emailAddress.name ? emailAddress.name : '') + (emailAddress.address ? ' <' + emailAddress.address +'> - ' : '')
+		}
+		if (mailObject.hasOwnProperty('toRecipients')) {
+			/** @type {Array} */
+			var toList = mailObject['toRecipients']
+			for (var indTo = 0; indTo < toList.length; indTo++) {
+				if (toList[indTo].hasOwnProperty('emailAddress') && toList[indTo]['emailAddress'].hasOwnProperty('address')) {
+					toAddresses.push(toList[indTo].emailAddress.address);
+				}
+			}
+		}
+		if (mailObject.hasOwnProperty('ccRecipients')) {
+			/** @type {Array} */
+			var ccList = mailObject['ccRecipients']
+			for (var indCC = 0; indCC < ccList.length; indCC++) {
+				if (ccList[indCC].hasOwnProperty('emailAddress') && ccList[indCC]['emailAddress'].hasOwnProperty('address')) {
+					ccAddresses.push(ccList[indCC].emailAddress.address);
+				}
+			}
+		}
+		if (mailObject.hasOwnProperty('bccRecipients')) {
+			/** @type {Array} */
+			var bccList = mailObject['bccRecipients']
+			for (var indBCC = 0; indBCC < bccList.length; indBCC++) {
+				if (bccList[indBCC].hasOwnProperty('emailAddress') && bccList[indBCC]['emailAddress'].hasOwnProperty('address')) {
+					bccAddresses.push(ccList[indBCC].emailAddress.address);
+				}
+			}
+		}
+		
+		mailInfo += senderInfo + '-> ' + mailObject.subject + ' ' + mailObject.id + '\nTo:' + toAddresses.join(' <-> ' )+ '\nCC:' + ccAddresses.join(' <-> ');
+		application.output(mailInfo)
+	}
+}
+/**
+ * get internet-headers
+ * @param id
+ * @return {String}
+ * @properties={typeid:24,uuid:"30D0B56C-1A06-4EA3-ACF5-713AA53976F6"}
+ */
+function getHeadersForID(id) {
+	if (!id) {
+		id = mailId
+	}
+	var url = 'https://graph.microsoft.com/v1.0/me/messages/' + id + '?$select=InternetMessageHeaders';	
+
+	var response = getGraphData(url);
+	if (response) {
+		var responseObject = JSON.parse(response);
+		var headers = {}
+		/** Array<{name: String, value:String}> */
+		var headerList = responseObject['internetMessageHeaders'];
+		for (var indHeader = 0; indHeader < headerList.length; indHeader++) {
+			var headerName = headerList[indHeader].name;
+			var headerValue = headerList[indHeader].value;
+			application.output(headerName + ': ' + headerValue);
+			headers[headerName] = headerValue;
+		}
+		return JSON.stringify(headers);
+	} else {
+		application.output('could not fetch message.')
+	}
+	return null;
+}
