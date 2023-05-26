@@ -544,6 +544,52 @@ function getReceipientsFromID(id) {
 		application.output(mailInfo)
 	}
 }
+
+/**
+ * TODO generated, please specify type and doc for the params
+ * @param folderID
+ * @param lastURI
+ *
+ * @properties={typeid:24,uuid:"76BF5B22-C750-4C8E-AA09-D9CD9BF4FC66"}
+ */
+function getDeltaMessages() {
+	folderIDTemp = folderIDTemp.trim();
+	mailInfo = ''
+	if (!accessToken) {
+		return;
+	}
+	var url = 'https://graph.microsoft.com/v1.0/me/mailfolders/' + folderIDTemp + '/messages/delta?$select=sender,subject';
+	var mailsfetched = 0
+	do {
+		var response = getGraphData(url);
+		if (response) {
+			
+			var responseObject = JSON.parse(response);
+
+			/** Array<{sender: Object, subject: String}> */
+			var mailList = responseObject.value;
+			for (var indMails = 0; indMails < mailList.length; indMails++) {
+				var mailObject = mailList[indMails] 
+				var senderInfo = '';
+				if (mailObject.hasOwnProperty('sender') && mailObject['sender'].hasOwnProperty('emailAddress'));
+				/** @type {{name: String, address: String}} */
+				var emailAddress = mailList[indMails].sender.emailAddress;
+				senderInfo = (emailAddress.name ? emailAddress.name : '') + (emailAddress.address ? ' <' + emailAddress.address +'> - ' : '')
+				mailInfo += senderInfo + '-> ' + mailList[indMails].subject + ' ' + mailList[indMails].id + '\n';
+				mailsfetched++
+			}
+			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink'] && mailList.length > 0) {
+				url = responseObject['@odata.nextLink'];
+			} else {
+				application.output('fetched all messages. Next time fetch new messages with: ' + responseObject['@odata.deltaLink']);
+				break;
+			}
+		} else {
+			break;
+		}
+	} while (true);
+}
+
 /**
  * get internet-headers
  * @param id
