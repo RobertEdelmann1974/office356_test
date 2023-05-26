@@ -270,18 +270,18 @@ function listMail(jsEvent, folderId) {
 
 			/** Array<{sender: Object, subject: String}> */
 			var mailList = responseObject.value
-			for (var indFolder = 0; indFolder < mailList.length; indFolder++) {
-				var mailObject = mailList[indFolder] 
+			for (var indMails = 0; indMails < mailList.length; indMails++) {
+				var mailObject = mailList[indMails] 
 				var senderInfo = '';
-				if (mailObject.hasOwnProperty('sender') && mailObject['sender'].hasOwnProperty('emailAddress'))
+				if (mailObject.hasOwnProperty('sender') && mailObject['sender'].hasOwnProperty('emailAddress'));
 				/** @type {{name: String, address: String}} */
-				var emailAddress = mailList[indFolder].sender.emailAddress;
+				var emailAddress = mailList[indMails].sender.emailAddress;
 				senderInfo = (emailAddress.name ? emailAddress.name : '') + (emailAddress.address ? ' <' + emailAddress.address +'> - ' : '')
-				mailInfo += senderInfo + '-> ' + mailList[indFolder].subject + '\n';
+				mailInfo += senderInfo + '-> ' + mailList[indMails].subject + ' ' + mailList[indMails].id + '\n';
 				mailsfetched++
 			}
 			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink'] && mailsfetched < maxMails) {
-				application.output('list goes on: ' + responseObject['@odata.nextLink']);
+//				application.output('list goes on: ' + responseObject['@odata.nextLink']);
 				url = responseObject['@odata.nextLink'];
 			} else {
 				break;
@@ -312,10 +312,10 @@ function listFoldersGraph(jsEvent) {
 			for (var indFolder = 0; indFolder < folderList.length; indFolder++) {
 				/** @type {{id: String, displayName: String, parentFolderId: String, childFolderCount: Number, unreadItemCount: Number, totalItemCount: Number, sizeInBytes: Number, isHidden: Boolean}} */
 				var folderObject = folderList[indFolder]
-				folderInfo += folderObject.displayName + ' (' + folderObject.totalItemCount.toString() + ' entries, ' + folderObject.childFolderCount.toString() + ' subfolders)\n'
+				folderInfo += folderObject.displayName + ' -> ' + folderObject.id + ' (' + folderObject.totalItemCount.toString() + ' entries, ' + folderObject.childFolderCount.toString() + ' subfolders)\n'
 			}
 			if (responseObject.hasOwnProperty('@odata.nextLink') && responseObject['@odata.nextLink']) {
-				application.output('list goes on: ' + responseObject['@odata.nextLink']);
+//				application.output('list goes on: ' + responseObject['@odata.nextLink']);
 				url = responseObject['@odata.nextLink'];
 			} else {
 				break;
