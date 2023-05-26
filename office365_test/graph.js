@@ -132,7 +132,21 @@ var mailInfo = '';
  *
  * @properties={typeid:35,uuid:"97DB9AC2-B7EA-4703-8A0D-EDC4AE95B9D5",variableType:4}
  */
-var maxMails = 300;
+var maxMails = 600;
+
+/**
+ * @type {String}
+ *
+ * @properties={typeid:35,uuid:"BE2A7941-E6C3-4214-89E7-E2B0F67B7E80"}
+ */
+var mailId = 'AAMkADk2YmZhYzM3LTA3MDEtNDQzMy1hMDIxLTc2YTdhZTg1ZTJmMwBGAAAAAADq8kDDlqxFQIlew8QuAH2wBwDg2aA4sXKoS7Q4eRHY29AUAAAAAAEMAADg2aA4sXKoS7Q4eRHY29AUAAPUxEGiAAA=';
+
+/**
+ * @type {String}
+ *
+ * @properties={typeid:35,uuid:"84BF7BA3-83A2-4B69-93EF-E04A4AF18E0F"}
+ */
+var folderIDTemp = 'AAMkADk2YmZhYzM3LTA3MDEtNDQzMy1hMDIxLTc2YTdhZTg1ZTJmMwAuAAAAAADq8kDDlqxFQIlew8QuAH2wAQDg2aA4sXKoS7Q4eRHY29AUAAAAAAEJAAA=';
 
 /**
  * @type {JSDataSet}
