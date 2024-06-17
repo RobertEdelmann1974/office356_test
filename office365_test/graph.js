@@ -634,3 +634,304 @@ function getHeadersForID(id) {
 	}
 	return null;
 }
+
+
+/**
+ * Erstellt einen Draft zum späteren Versand.
+ * Worflow ist: Draft erstellen - Attachments anhängen - Draft versenden.
+ * Mailversand erlaubt keine großen Dateien.
+ *
+ * @param {JSRecord<db:/bauprocheck_emails/email>} recordEmail
+ * @param {JSRecord<db:/bauprocheck_emails/email_account>} recordEmailAccount
+ * @return {Object}
+ *
+ * @properties={typeid:24,uuid:"F517E74A-F30B-462B-8FE9-0EF33930D532"}
+ */
+function createDraftObject(recordEmail, recordEmailAccount) {
+	if (!recordEmail || !utils.hasRecords(recordEmail.email_to_email_account)) {
+		throw new Error('Kein Emailaccount ausgewählt!');
+	}
+
+	if (!(recordEmail.nachricht_html || recordEmail.nachricht_text)) {
+		//TODO: sonst kriegen wir no mime content; evtl. reichen aber attachments?
+		throw new Error('Bitte geben Sie erst einen Text ein!');
+	}
+
+	var newDraft = {
+		"from:": {
+			"emailAddress": {
+				"name": (scopes.BauProCheckDefaults.benutzer.anzeige_benutzer ? scopes.BauProCheckDefaults.benutzer.anzeige_benutzer : recordEmailAccount.email_adresse),
+				"address": recordEmailAccount.email_adresse
+			}
+		},
+
+		"sender": {
+			"emailAddress": {
+				"name": (scopes.BauProCheckDefaults.benutzer.anzeige_benutzer ? scopes.BauProCheckDefaults.benutzer.anzeige_benutzer : recordEmailAccount.email_adresse),
+				"address": recordEmailAccount.email_adresse
+			}
+		},
+		"subject": recordEmail.titel,
+		"body": {
+			"contentType": "HTML",
+			"content": recordEmail.nachricht_html
+		}
+	}
+
+
+	var toRecipients = [];
+	var ccRecipients = [];
+	var bccRecipients = [];
+
+	var toFound = false;
+	if (utils.hasRecords(recordEmail.email_to_email_empfaenger)) {
+		for (var e = 1; e <= recordEmail.email_to_email_empfaenger.getSize(); e++) {
+			var recordEmpfaenger = recordEmail.email_to_email_empfaenger.getRecord(e);
+			if (recordEmpfaenger.email_adresse) {
+				// Bereinigen der Email-Adresse wenn "name@domain <Name>" angegeben ist
+				if (recordEmpfaenger.email_adresse.trim().indexOf(' ') > -1) {
+					var arrayEmail = recordEmpfaenger.email_adresse.split(' ');
+					recordEmpfaenger.email_adresse = arrayEmail.shift();
+				}
+
+				if (recordEmpfaenger.empfaenger_name) {
+					var eaName = recordEmpfaenger.empfaenger_name
+				}
+				if (recordEmpfaenger.email_adresse) {
+					var eaAddress = recordEmpfaenger.email_adresse;
+
+					if (recordEmpfaenger.empfaenger_typ == scopes.Email.EMPFAENGER_TYP.TO) {
+						toRecipients.push({"emailAddress": {"address": eaAddress, "name": eaName}});
+						toFound = true;
+					} else if (recordEmpfaenger.empfaenger_typ == scopes.Email.EMPFAENGER_TYP.CC) {
+						ccRecipients.push({"emailAddress": {"address": eaAddress, "name": eaName}});
+					} else if (recordEmpfaenger.empfaenger_typ == scopes.Email.EMPFAENGER_TYP.BCC) {
+						bccRecipients.push({"emailAddress": {"address": eaAddress, "name": eaName}});
+					}
+				}
+			}
+		}
+	}
+	if (!toFound) {
+		throw new Error('Bitte geben Sie mindestens einen Empfänger vom Typ \'AN\' an!');
+	}
+	newDraft.toRecipients = toRecipients;
+	if(ccRecipients.length) {
+		newDraft.ccRecipients = ccRecipients;
+	}
+	if(bccRecipients.length) {
+		newDraft.bccRecipients = bccRecipients;
+	}
+
+	return newDraft;
+}
+
+/**
+ * @param {String} draftId
+ * @param {String} mailBody
+ * @param {JSRecord<db:/bauprocheck_emails/email_account>} recordEmailAccount
+ * @return {String}
+ *
+ * @properties={typeid:24,uuid:"698EE2B6-0486-4EDB-A897-68BF7BAB6862"}
+ */
+function convertBase64ToCid(draftId, mailBody, recordEmailAccount) {
+	var jsoup = Packages.org.jsoup.Jsoup;
+	var images = Packages.org.jsoup.select.Elements;
+	var image = Packages.org.jsoup.nodes.Element;
+	var htmlDoc = Packages.org.jsoup.nodes.Document;
+	var iter = java.util.Iterator;
+
+	htmlDoc = jsoup.parse(mailBody);
+	images = htmlDoc.select('img')
+	iter = images.iterator();
+	while (iter.hasNext()) {
+		image = iter.next();
+		if (image.attr('src').toString().substr(0,5) != 'data:') {
+			continue;
+		}
+		/** @type {String} */
+		var imgData = image.attr('src').toString().substr(image.attr('src').toString().indexOf('base64,')+7)
+		imgData = imgData.substr(0,imgData.length-2);
+		var jsImage = plugins.images.getImage(utils.base64ToBytes(imgData));
+		if (jsImage.getWidth() > 800 || jsImage.getHeight() > 800) {
+			jsImage = jsImage.resize(800,800)
+		}
+		/** @type {String}  */
+		var newExtension = scopes.MimeTypes.getExtension(jsImage.getContentType())
+		if (!newExtension) {
+			newExtension = '';
+		} else if (newExtension.indexOf(', ') > -1) {
+			newExtension = newExtension.split(', ').pop().trim()
+		}
+		var newName = application.getUUID().toString()+newExtension;
+		uploadInlinePictureToDraft(draftId, jsImage.getData(), newName, recordEmailAccount)
+		image.attr('src',newName);
+	}
+	return htmlDoc.toString();
+}
+
+/**
+ * Maximum Size of File-Chunks, 4 MB is good according to https://learn.microsoft.com/en-us/graph/outlook-large-attachments?tabs=http#step-2-use-the-upload-session-to-upload-a-range-of-bytes-of-the-file
+ * @type {Number}
+ *
+ * @properties={typeid:35,uuid:"86AE18BD-F118-4DFF-BDF5-CCD6E0542CF3",variableType:8}
+ */
+var maxFileChunkSize = 4*1024*1024
+
+/**
+ * @param {String} draftId
+ * @param {JSRecord<db:/bauprocheck_emails/email_attachments>} recordAttachment
+ * @param {JSRecord<db:/bauprocheck_emails/email_account>} recordEmailAccount
+ * @return {Boolean}
+ * @properties={typeid:24,uuid:"3C1B33CC-3732-4DFC-8569-C3E2B102651A"}
+ */
+function uploadFileToDraft(draftId, recordAttachment, recordEmailAccount) {
+	if (!recordAttachment || !draftId) {
+		return false;
+	}
+	var bytes = recordAttachment.foundset.getBytes(recordAttachment)
+	var aktSize = 0;
+	var chunk = 0;
+	var success = true;
+	var size = recordAttachment.groesse;
+	var userId = 'me';
+	if (recordEmailAccount.user_id) {
+		userId = 'users/'+recordEmailAccount.user_id;
+	}
+	accessToken = scopes.oauth.getAccessTokenForEmail(recordEmailAccount);
+	var url = 'https://graph.microsoft.com/v1.0/' + userId + '/messages/' + draftId + '/attachments/createUploadSession';
+	var fileMetadata = {
+		"AttachmentItem": {
+			"attachmentType": "file",
+			"name": recordAttachment.attachment_name,
+			"size": size
+		}
+	}
+	var httpClient = plugins.http.createNewHttpClient();
+	var request = httpClient.createPostRequest(url);
+	request.addHeader('Authorization', accessToken);
+	request.addHeader('Content-Type', 'application/json');
+	request.setBodyContent(JSON.stringify(fileMetadata), 'application/json');
+	var response = request.executeRequest();
+	httpClient.close();
+	var statusCode = response.getStatusCode();
+	if (statusCode >= 200 && statusCode <= 299) {
+		var responseBody = response.getResponseBody()
+		if (responseBody) {
+			var uploadURL = JSON.parse(responseBody)['uploadUrl'];
+			if (uploadURL) {
+				if (recordAttachment.attachment_name) {
+					filename = recordAttachment.attachment_name;
+				}
+				var fileextension = filename.split('.').pop();
+				while (aktSize < size) {
+					chunk = chunk++
+					var start = aktSize;
+					/** @type {Array<byte>}  */
+					var data = bytes.slice(start,start + maxFileChunkSize);
+					var filename = 'temp_mail_' + utils.dateFormat(new Date,'yyyyMMdd-HHmmss') + chunk.toString() + '.tmp';
+					var tempFile = plugins.file.createTempFile('temp',fileextension);
+					tempFile.setBytes(data)
+					var contentRange = 'bytes ' + start.toString() + '-' + (start + data.length - 1).toString() + '/' + size.toString();
+					httpClient = plugins.http.createNewHttpClient();
+					var uploadRequest = httpClient.createPutRequest(uploadURL);
+					uploadRequest.setFile(tempFile);
+					uploadRequest.addHeader('Content-Range', contentRange);
+					uploadRequest.addHeader('Content-Length',data.length)
+					response = uploadRequest.executeRequest();
+					httpClient.close();
+					tempFile.deleteFile();
+					statusCode = response.getStatusCode();
+					if (statusCode >= 200 && statusCode <= 299) {
+						aktSize = aktSize + data.length;
+					} else {
+						logger.error('error uploading file.\n' + 'URL: ' + url + '\nStatuscode: ' + response.getStatusCode() + '\n' + response.getResponseBody());
+						success = false;
+						break;
+					}
+				}
+			}
+			if (success) {
+				return true;
+			}
+		} else {
+			logger.error('No info after uploading metadata.\n' + 'URL: ' + url + '\nStatuscode: ' + response.getStatusCode());
+		}
+	} else {
+		logger.error('error while uploading metadata.\n' + 'URL: ' + url + '\nStatuscode: ' + response.getStatusCode() + '\n' + response.getResponseBody());
+	}
+	return false
+}
+
+
+/**
+ *
+ * @param {String} draftId
+ * @param {Array<byte>} attachmentBytes
+ * @param {String} filename
+ * @param {JSRecord<db:/bauprocheck_emails/email_account>} recordEmailAccount
+ * @return {Boolean}
+ * @properties={typeid:24,uuid:"D21FF050-F8C3-48B4-A768-F74DB9BDE34B"}
+ */
+function uploadInlinePictureToDraft(draftId, attachmentBytes, filename, recordEmailAccount) {
+	if (!attachmentBytes || !filename || !draftId) {
+		return false;
+	}
+	var fileextension = filename.split('.').pop();
+	var tempFile = plugins.file.createTempFile('temp',fileextension);
+
+	tempFile.setBytes(attachmentBytes)
+	var size = attachmentBytes.length;
+	var userId = 'me';
+	if (recordEmailAccount.user_id) {
+		userId = 'users/'+recordEmailAccount.user_id;
+	}
+	accessToken = scopes.oauth.getAccessTokenForEmail(recordEmailAccount);
+	var url = 'https://graph.microsoft.com/v1.0/' + userId + '/messages/' + draftId + '/attachments/createUploadSession';
+	var fileMetadata = {
+		"AttachmentItem": {
+			"attachmentType": "file",
+			"name": filename,
+			"size": size,
+		    "isInline": true,
+		    "contentId": filename
+		}
+	}
+	var httpClient = plugins.http.createNewHttpClient();
+	var request = httpClient.createPostRequest(url);
+	request.addHeader('Authorization', accessToken);
+	request.addHeader('Content-Type', 'application/json');
+	request.setBodyContent(JSON.stringify(fileMetadata), 'application/json');
+	var response = request.executeRequest();
+	httpClient.close();
+	var statusCode = response.getStatusCode();
+	if (statusCode >= 200 && statusCode <= 299) {
+		var responseBody = response.getResponseBody()
+		if (responseBody) {
+			var uploadURL = JSON.parse(responseBody)['uploadUrl'];
+			if (uploadURL) {
+				httpClient = plugins.http.createNewHttpClient();
+				var uploadRequest = httpClient.createPutRequest(uploadURL);
+				uploadRequest.setFile(tempFile);
+				uploadRequest.addHeader('Content-Range', 'bytes 0-' + (size - 1).toString() + '/' + size.toString());
+				uploadRequest.addHeader('Content-Length',size)
+				response = uploadRequest.executeRequest();
+				httpClient.close();
+				tempFile.deleteFile();
+				statusCode = response.getStatusCode();
+				if (statusCode >= 200 && statusCode <= 299) {
+					responseBody = response.getResponseBody()
+					return true;
+				} else {
+					logger.error('error uploading file.\n' + 'URL: ' + url + '\nStatuscode: ' + response.getStatusCode() + '\n' + response.getResponseBody());
+				}
+			}
+		} else {
+			logger.error('No info after uploading metadata.\n' + 'URL: ' + url + '\nStatuscode: ' + response.getStatusCode());
+		}
+	} else {
+		logger.error('error while uploading metadata.\n' + 'URL: ' + url + '\nStatuscode: ' + response.getStatusCode() + '\n' + response.getResponseBody());
+	}
+	tempFile.deleteFile();
+	return false
+}
