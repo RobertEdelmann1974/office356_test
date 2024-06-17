@@ -97,6 +97,23 @@ var email_from = '';
 var email_to = '';
 
 /**
+ * @type {Array<{address: String, name: String, type: Number}>}
+ * @properties={typeid:35,uuid:"33D3E7B2-A9C9-4405-9C63-5CAECF19BC75",variableType:-4}
+ */
+var emailReceipients = null;
+
+/**
+ * @enum
+ *
+ * @properties={typeid:35,uuid:"7772FCD2-75F2-4B91-B815-4365CDE6AB8B",variableType:-4}
+ */
+var RECEIPIENT_TYPE = {
+	TO: 1,
+	CC: 2,
+	BCC: 3
+}
+
+/**
  * @type {String}
  *
  * @properties={typeid:35,uuid:"CE00DAFF-45AA-4CC3-97D5-10AE6E076A0C"}
@@ -116,7 +133,6 @@ var email_body = 'email_body';
  * @properties={typeid:35,uuid:"DAAAE5C5-2B89-4E96-B059-64ABFCDE508A"}
  */
 var folderInfo = '';
-	
 
 /**
  * @type {String}
